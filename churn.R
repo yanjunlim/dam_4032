@@ -59,14 +59,14 @@ test_ <- scaled[-index,]
 library(neuralnet)
 n <- names(train_)
 f <- as.formula(paste("MonthlyCharges~Tenure+Contract"))
-nn <- neuralnet(f,data=train_,hidden=c(5,3),linear.output=F)
+nn <- neuralnet(f,data=train_,hidden=c(5,3),linear.output=T, stepmax=1e7)
 plot(nn)
 
 testn<-NULL
 testn <- cbind(testn,test_$Tenure)
 testn <- cbind(testn,test_$Contract)
 
-pr.nn <- compute(nn,testn)
+pr.nn <- neuralnet::compute(nn,testn)
 pr.nn_ <- pr.nn$net.result*(max(churndata_new$MonthlyCharges)-min(churndata_new$MonthlyCharges))+min(churndata_new$MonthlyCharges)
 test.r <- (test_$MonthlyCharges)*(max(churndata_new$MonthlyCharges)-min(churndata_new$MonthlyCharges))+min(churndata_new$MonthlyCharges)
 MSE.nn <- sum((test.r - pr.nn_)^2)/nrow(test_)
@@ -80,7 +80,7 @@ legend('bottomright',legend=c('NN','LM'),pch=18,col=c('red','blue'))
 library(boot)
 set.seed(200)
 lm.fit <- glm(MonthlyCharges~Tenure+Contract,data=churndata_new)
-cv.glm(churndata_new,lm.fit,K=10)$delta[1]
+cv.glm(churndata_new,lm.fit,K=2)$delta[1]
 
 set.seed(450)
 cv.error <- NULL
@@ -96,11 +96,11 @@ for(i in 1:k){
   scaled1 <- as.data.frame(scale(na.omit(churndata_new), center = mins1, scale = maxs1 - mins1))
   train.cv <- scaled1[index,]
   test.cv <- scaled1[-index,]
-  nn <- neuralnet(f,data=train.cv,hidden=c(5,3),linear.output=F)
+  nn <- neuralnet(f,data=train.cv,hidden=c(5,3),linear.output=T, stepmax=1e7)
   testn<-NULL
   testn <- cbind(testn,test.cv$Tenure)
   testn <- cbind(testn,test.cv$Contract)
-  pr.nn <- compute(nn,testn)
+  pr.nn <- neuralnet::compute(nn,testn)
   pr.nn <- pr.nn$net.result*(max(churndata_new$MonthlyCharges)-min(churndata_new$MonthlyCharges))+min(churndata_new$MonthlyCharges)
   test.cv.r <- (test.cv$MonthlyCharges)*(max(churndata_new$MonthlyCharges)-min(churndata_new$MonthlyCharges))+min(churndata_new$MonthlyCharges)   
   cv.error[i] <- sum((test.cv.r - pr.nn)^2)/nrow(test.cv)    
