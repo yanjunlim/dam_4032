@@ -38,21 +38,24 @@ for (i in 1:ncol(churndata_new))
   churndata_new[,i]<-as.numeric(churndata_new[,i])
 }
 
-index <- sample(1:nrow(churndata_new),round(0.9*nrow(churndata_new)))
-train <- churndata_new[index,]
-test <- churndata_new[-index,]
+churndata_modified <-churndata_new
+keeps<-c("MonthlyCharges","Tenure","Contract")
+churndata_modified<-churndata_modified[keeps]
+index <- sample(1:nrow(churndata_modified),round(0.9*nrow(churndata_modified)))
+train <- churndata_modified[index,]
+test <- churndata_modified[-index,]
 
 ## Scale data for neural network
 
-ta<-apply(churndata_new,2,function(x) sum(is.na(x)))
+ta<-apply(churndata_modified,2,function(x) sum(is.na(x)))
 lm.fit <- glm(MonthlyCharges~Tenure+Contract, data=train)
 summary(lm.fit)
 pr.lm <- predict(lm.fit,test)
 MSE.lm <- sum((pr.lm - test$MonthlyCharges)^2)/nrow(test)
 
-maxs <- apply(churndata_new, 2, max) 
-mins <- apply(churndata_new, 2, min)
-scaled <- as.data.frame(scale(na.omit(churndata_new), center = mins, scale = maxs - mins))
+maxs <- apply(churndata_modified, 2, max) 
+mins <- apply(churndata_modified, 2, min)
+scaled <- as.data.frame(scale(na.omit(churndata_modified), center = mins, scale = maxs - mins))
 train_ <- scaled[index,]
 test_ <- scaled[-index,]
 
@@ -62,13 +65,28 @@ f <- as.formula(paste("MonthlyCharges~Tenure+Contract"))
 nn <- neuralnet(f,data=train_,hidden=c(5,3),linear.output=T, stepmax=1e7)
 plot(nn)
 
-testn<-NULL
-testn <- cbind(testn,test_$Tenure)
-testn <- cbind(testn,test_$Contract)
+testn<-test_
+keeps<-c("MonthlyCharges","Tenure","Contract")
+testn<-testn[keeps]
 
-pr.nn <- neuralnet::compute(nn,testn)
-pr.nn_ <- pr.nn$net.result*(max(churndata_new$MonthlyCharges)-min(churndata_new$MonthlyCharges))+min(churndata_new$MonthlyCharges)
-test.r <- (test_$MonthlyCharges)*(max(churndata_new$MonthlyCharges)-min(churndata_new$MonthlyCharges))+min(churndata_new$MonthlyCharges)
+pr.nn <- neuralnet::compute(nn,testn[,2:3])
+
+results<-data.frame(actual=testn$MonthlyCharges,prediction=pr.nn$net.result)
+roundedresults<-sapply(results,round,digits=0)
+roundedresultsdtf=data.frame(roundedresults)
+attach(roundedresultsdtf)
+count=0
+for(h in 1:nrow(testn))
+{
+  if(actual[h]==prediction[h])
+  {
+    count<-count+1
+  }
+}
+confidence = count/nrow(testn)
+
+pr.nn_ <- pr.nn$net.result*(max(churndata_modified$MonthlyCharges)-min(churndata_modified$MonthlyCharges))+min(churndata_modified$MonthlyCharges)
+test.r <- (test_$MonthlyCharges)*(max(churndata_modified$MonthlyCharges)-min(churndata_modified$MonthlyCharges))+min(churndata_modified$MonthlyCharges)
 MSE.nn <- sum((test.r - pr.nn_)^2)/nrow(test_)
 
 print(paste(MSE.lm,MSE.nn))
@@ -79,8 +97,8 @@ legend('bottomright',legend=c('NN','LM'),pch=18,col=c('red','blue'))
 
 library(boot)
 set.seed(200)
-lm.fit <- glm(MonthlyCharges~Tenure+Contract,data=churndata_new)
-cv.glm(churndata_new,lm.fit,K=2)$delta[1]
+lm.fit <- glm(MonthlyCharges~Tenure+Contract,data=churndata_modified)
+cv.glm(churndata_modified,lm.fit,K=2)$delta[1]
 
 set.seed(450)
 cv.error <- NULL
@@ -90,23 +108,38 @@ library(plyr)
 pbar <- create_progress_bar('text')
 pbar$init(k)
 for(i in 1:k){
-  index <- sample(1:nrow(churndata_new),round(0.9*nrow(churndata_new)))
-  maxs1 <- apply(churndata_new, 2, max) 
-  mins1 <- apply(churndata_new, 2, min)
-  scaled1 <- as.data.frame(scale(na.omit(churndata_new), center = mins1, scale = maxs1 - mins1))
+  index <- sample(1:nrow(churndata_modified),round(0.9*nrow(churndata_modified)))
+  maxs1 <- apply(churndata_modified, 2, max) 
+  mins1 <- apply(churndata_modified, 2, min)
+  scaled1 <- as.data.frame(scale(na.omit(churndata_modified), center = mins1, scale = maxs1 - mins1))
   train.cv <- scaled1[index,]
   test.cv <- scaled1[-index,]
   nn <- neuralnet(f,data=train.cv,hidden=c(5,3),linear.output=T, stepmax=1e7)
-  testn<-NULL
-  testn <- cbind(testn,test.cv$Tenure)
-  testn <- cbind(testn,test.cv$Contract)
-  pr.nn <- neuralnet::compute(nn,testn)
-  pr.nn <- pr.nn$net.result*(max(churndata_new$MonthlyCharges)-min(churndata_new$MonthlyCharges))+min(churndata_new$MonthlyCharges)
-  test.cv.r <- (test.cv$MonthlyCharges)*(max(churndata_new$MonthlyCharges)-min(churndata_new$MonthlyCharges))+min(churndata_new$MonthlyCharges)   
+  testn<-test_
+  keeps<-c("MonthlyCharges","Tenure","Contract")
+  testn<-testn[keeps]
+  pr.nn <- neuralnet::compute(nn,testn[,2:3])
+  
+  results<-data.frame(actual=testn$MonthlyCharges,prediction=pr.nn$net.result)
+  roundedresults<-sapply(results,round,digits=0)
+  roundedresultsdtf=data.frame(roundedresults)
+  attach(roundedresultsdtf)
+  count=0
+  for(h in 1:nrow(testn))
+  {
+    if(actual[h]==prediction[h])
+    {
+      count<-count+1
+    }
+  }
+  confidence[i] = count/nrow(testn)
+  
+  pr.nn <- pr.nn$net.result*(max(churndata_modified$MonthlyCharges)-min(churndata_modified$MonthlyCharges))+min(churndata_modified$MonthlyCharges)
+  test.cv.r <- (test.cv$MonthlyCharges)*(max(churndata_modified$MonthlyCharges)-min(churndata_modified$MonthlyCharges))+min(churndata_modified$MonthlyCharges)   
   cv.error[i] <- sum((test.cv.r - pr.nn)^2)/nrow(test.cv)    
   pbar$step()
 }
-
+mean(confidence)
 mean(cv.error)
 boxplot(cv.error,xlab='MSE CV',col='cyan',
         border='blue',names='CV error (MSE)',
