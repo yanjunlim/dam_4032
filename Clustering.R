@@ -1,6 +1,6 @@
-library(stringi)
+  library(stringi)
 #-Load the "churn" dataset
-churndata <- read.csv("~/DAM/Telco-Customer-Churn.csv", header = TRUE)
+churndata <- read.csv("Telco-Customer-Churn.csv", header = TRUE)
 str(churndata)
 dim(churndata) # 7043   21
 summary(churndata)
