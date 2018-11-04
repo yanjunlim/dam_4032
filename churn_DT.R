@@ -61,7 +61,6 @@ plotcp(tree) # visualize cross-validation results
 summary(tree) # detailed summary of splits
 rpart.plot(tree, type=4, extra = 101)#Detailed plot
 
-
 #--Run against test data
 p<-predict(tree, churn_testing, type = "class")
 table(churn_testing[,21], p)
