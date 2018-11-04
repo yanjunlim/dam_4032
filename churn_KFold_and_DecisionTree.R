@@ -37,41 +37,52 @@ for (c in 1:ncol(churndata_new)){
 #remove(churndata_new)
 
 
-#lib for both function
+#lib for sampling function
 library(lattice)
 library(ggplot2)
 library(caret)
 library(e1071)
 library(rpart)
 library(rpart.plot)
-
-#sample size s at 75%
-s<- floor(0.75* nrow(churndata))
-#Random selection of sample
 set.seed(123)
-train_index <- sample(seq_len(nrow(churndata)), size = s)
+
+#--Option 1 3/4 Sample split
+#--sample size s at 75%
+#s<- floor(0.75* nrow(churndata))
+
+#train_index <- sample(seq_len(nrow(churndata)), size = s)
+
+#--Training & Testing models
+#churn_train<-churndata[train_index,]
+#churn_test<- churndata[-train_index,]
+#--end of option 1
 
 
-#Training & Testing models
-churn_train<-churndata[train_index,]
-churn_test<- churndata[-train_index,]
+#--option 2 K Fold CV
+churndata1<-churndata
+#--Start test
+churndata1<-churndata1[sample(nrow(churndata1)),]
+#--Create 10 equally size folds
+folds <- cut(seq(1,nrow(churndata1)),breaks=10,labels=FALSE)
+#--Perform 10 fold cross validation
+for(i in 1:10){
+  #--Segement your data by fold using the which() function 
+  testIndexes <- which(folds==i,arr.ind=TRUE)
+  testData <- churndata1[testIndexes, ]
+  trainData <- churndata1[-testIndexes, ]
+  #--Use the test and train data partitions
+}
 
-#--K fold cross validation for classification tree
-folds <- createFolds(factor(churn_train), k = 10, list = FALSE)
 
-#KFold summary
-print(folds) # display the results 
-plot(folds) # visualize cross-validation results 
-summary(folds) # detailed summary of splits
-#end of K fold
 
-#--Decision Tree using regression partition
 
-# grow tree with all data(not all category are usable)
+#--Decision Tree using regression part
+
+#-- grow tree with all data(not all category are usable)
 #tree <- rpart(Churn~., churn_train, method="class")
 
 #--grow tree with Payment category
-tree<- rpart(Churn~ PaymentMethod + MonthlyCharges +TotalCharges, churn_train, method="class")
+tree<- rpart(Churn~ PaymentMethod + MonthlyCharges +TotalCharges, trainData, method="class")
 
 #--grow tree with Services category
 #tree<- rpart(Churn~ InternetService + Contract + Tenure, churn_train, method="class")
@@ -80,12 +91,12 @@ tree<- rpart(Churn~ PaymentMethod + MonthlyCharges +TotalCharges, churn_train, m
 #tree<- rpart(Churn~ InternetService + Contract + Tenure + PaymentMethod + MonthlyCharges +TotalCharges, churn_train, method="class")
 
 #--result of rpart plot
-printcp(tree) # display the results 
-plotcp(tree) # visualize cross-validation results 
-summary(tree) # detailed summary of splits
-rpart.plot(tree, type=4, extra = 101)#Detailed plot
+printcp(tree) #--display the results 
+plotcp(tree) #--visualize cross-validation results 
+summary(tree) #--detailed summary of splits
+rpart.plot(tree, type=4, extra = 101)#--Detailed plot
 
 
-#--Run against test data
-p<-predict(tree, churn_test, type = "class")
-table(churn_test[,21], p)
+#--Run Prediction against test data
+p<-predict(tree, testData, type = "class")
+table(testData[,21], p)
