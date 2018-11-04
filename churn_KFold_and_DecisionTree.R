@@ -37,16 +37,17 @@ for (c in 1:ncol(churndata_new)){
 #remove(churndata_new)
 
 
-#lib for sampling function
+#lib for both function
 library(lattice)
 library(ggplot2)
 library(caret)
 library(e1071)
 library(rpart)
 library(rpart.plot)
+
 #sample size s at 75%
 s<- floor(0.75* nrow(churndata))
-
+#Random selection of sample
 set.seed(123)
 train_index <- sample(seq_len(nrow(churndata)), size = s)
 
@@ -55,16 +56,16 @@ train_index <- sample(seq_len(nrow(churndata)), size = s)
 churn_train<-churndata[train_index,]
 churn_test<- churndata[-train_index,]
 
-#--K fold cross validation for regression tree
+#--K fold cross validation for classification tree
 folds <- createFolds(factor(churn_train), k = 10, list = FALSE)
 
+#KFold summary
 print(folds) # display the results 
 plot(folds) # visualize cross-validation results 
 summary(folds) # detailed summary of splits
 #end of K fold
 
-
-#--Decision Tree using regression part
+#--Decision Tree using regression partition
 
 # grow tree with all data(not all category are usable)
 #tree <- rpart(Churn~., churn_train, method="class")
