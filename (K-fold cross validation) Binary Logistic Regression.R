@@ -1,9 +1,11 @@
-library(stringi)
+library(DMwR)
 library(tseries)
 library(usdm)
 library(olsrr)
 library(pROC)
 library(ROCR)
+library(ROSE)
+library(stringi)
 
 #-Load the "churn" dataset
 churndata <- read.csv("Telco-Customer-Churn.csv", header = TRUE)
@@ -12,34 +14,65 @@ dim(churndata) # 7043   21
 summary(churndata)
 #--Observed : 11 NA's in TotalCharges
 
+
 #-Handling Missing Data
-churndata_new <- churndata
+cnew <- churndata
 
 #--Replacing Rows with NA's with the Median
-churndata_new$TotalCharges[which(is.na(churndata_new$TotalCharges))] <- # Set : Rows in the Missing (Those that have NA)
-  median(churndata_new$TotalCharges, na.rm=TRUE)                        # From: Middle "Value" of the Rating
-dim(churndata_new)      #No rows removed
-summary(churndata_new)  #NA's is removed from TotalCharges
+cnew$TotalCharges[which(is.na(cnew$TotalCharges))] <- # Set : Rows in the Missing (Those that have NA)
+  median(cnew$TotalCharges, na.rm=TRUE)                        # From: Middle "Value" of the Rating
+dim(cnew)      #No rows removed
+summary(cnew)  #NA's is removed from TotalCharges
 
-churndata_new$CustomerID <- NULL
-testdata <- churndata_new
+#-Clean of Columns (to Factor)
+cnew$A <- "A" #Temporary Column
 
-for (t in 1:ncol(testdata)){
-  if (is.factor(testdata[,t])){
-    lev = levels(testdata[,t])
-    testdata[,t] <- as.character(testdata[,t])
-    for(l in 1:length(lev)){
-      if (lev[l] == "Yes" & l != 2){
-        testdata[,t][which(testdata[,t] == "1")] <- l-1
-        testdata[,t][which(testdata[,t] == "Yes")] <- 1
-      }else{
-        testdata[,t][which(testdata[,t] == lev[l])] <- l-1
-      }
-    }
-    testdata[,t] <- as.integer(testdata[,t])
-  }
-}
-churndata_new<-testdata
+#--CustomerID
+cnew$CustomerID <- NULL #no use
+
+#--TotalCharges
+cnew$A <- cnew$MonthlyCharges * cnew$Tenure
+cor.test(~ A + TotalCharges, cnew) #0.9992631
+cnew$TotalCharges <- NULL
+#---TotalCharges is closely related to MonthlyCharges and Tenure, thus it is removed.
+
+#--Senior Citizen
+cnew$A[which(cnew$SeniorCitizen == 1)] <- "Yes"
+cnew$A[which(cnew$SeniorCitizen == 0)] <- "No"
+cnew$SeniorCitizen <- as.factor(cnew$A)
+
+#--Tenure
+cnew$A[which(                   cnew$Tenure <= 12)] <- "0~12"
+cnew$A[which(cnew$Tenure > 12 & cnew$Tenure <= 24)] <- "12~24"
+cnew$A[which(cnew$Tenure > 24 & cnew$Tenure <= 36)] <- "24~36"
+cnew$A[which(cnew$Tenure > 36 & cnew$Tenure <= 48)] <- "36~48"
+cnew$A[which(cnew$Tenure > 48 & cnew$Tenure <= 60)] <- "48~60"
+cnew$A[which(cnew$Tenure > 60                    )] <- "60~"
+cnew$Tenure <- as.factor(cnew$A)
+
+#--MonthlyCharges
+cnew$A[which(                           cnew$MonthlyCharges <= 20 )] <- "0~20"
+cnew$A[which(cnew$MonthlyCharges > 20 & cnew$MonthlyCharges <= 40 )] <- "20~40"
+cnew$A[which(cnew$MonthlyCharges > 40 & cnew$MonthlyCharges <= 60 )] <- "40~60"
+cnew$A[which(cnew$MonthlyCharges > 60 & cnew$MonthlyCharges <= 80 )] <- "60~80"
+cnew$A[which(cnew$MonthlyCharges > 80 & cnew$MonthlyCharges <= 100)] <- "80~100"
+cnew$A[which(cnew$MonthlyCharges > 100                            )] <- "100~"
+cnew$MonthlyCharges <- as.factor(cnew$A)
+
+cnew$A <- NULL #Remove Temporary Column
+str(cnew) #Verify factors
+
+#-Takes a random 70% of data
+sample <- sample(nrow(cnew), 0.7*nrow(cnew), replace = FALSE)
+train <- cnew[sample,]      # Store the 70% data in train
+valid <- cnew[-sample,]     # Store the remaining 30% data in valid
+
+#-Balancing the train data
+#-Takes a random 70% of data
+#sample <- sample(nrow(churndata_new), 0.7*nrow(churndata_new), replace = FALSE)
+#train <- churndata_new[sample,]      # Store the 70% data in train
+#valid <- churndata_new[-sample,]     # Store the remaining 30% data in valid
+
 areaundercurve<-c()
 misClasificError<-c()
 #Find out about distribution
@@ -53,9 +86,9 @@ misClasificError<-c()
 # means both are not normally distributed
 
 
-
+str(train)
 #do collinearity test
-lm.fit<-lm(Churn~.-TotalCharges-Gender-Partner-PhoneService-PaymentMethod-Dependents-StreamingTV-StreamingMovies-DeviceProtection, data=churndata_new)
+lm.fit<-glm(Churn~.-Gender-Partner-Dependents-OnlineBackup-DeviceProtection-PhoneService-SeniorCitizen-TechSupport,family = binomial(link='logit'),data=train)
 summary(lm.fit)
 
 # Call:
@@ -90,7 +123,7 @@ summary(lm.fit)
 
 #a <-lm(Churn ~ .-CustomerID-Gender-Partner-MultipleLines-PaymentMethod-Dependents, churndata_new)
 #summary(a)
-ols_vif_tol(lm.fit)
+#ols_vif_tol(lm.fit)
 # # A tibble: 10 x 3
 # Variables        Tolerance   VIF
 # <chr>                <dbl> <dbl>
@@ -110,42 +143,48 @@ ols_vif_tol(lm.fit)
 #best if VIF close to 1
 
 library(plyr) 
-k<-10
+k<-5
 pbar <- create_progress_bar('text')
 pbar$init(k)
+#i<-1
 for(i in 1:k){
-#split data 70-30
-index <- sample(1:nrow(churndata_new),round(0.7*nrow(churndata_new)))
-train <- churndata_new[index,]
-test <- churndata_new[-index,]
-#doing logistic linear regression
-model<-glm(Churn~.-TotalCharges-Gender-Partner-PhoneService-PaymentMethod-Dependents-StreamingTV-StreamingMovies-DeviceProtection,family = binomial(link='logit'),data=train)
-summary(model)
-
-#regression(anova)
-anova(model,test="Chisq")
-
-#prediction
-p<-predict(model,type="response")
-p<-ifelse(p>0.5,1,0)
-misClasificError[i] <- mean(p!=test$Churn)
-#accuracy of prediction
-#print(paste('Accuracy',1-misClasificError[i]))
-
-#based on prediction, test on actual
-p<-predict(model,newdata=test,type="response")
-pr<-prediction(p,test$Churn)
-#plot true-positive to false-positive
-prf<-performance(pr,measure="tpr",x.measure="fpr")
-plot(prf)
-
-#finding Area Under Curve
-auc <- performance(pr, measure="auc")
-auc <- auc@y.values[[1]]
-#AUC (best) = 1, AUC(coin toss)=0.5
-areaundercurve[i]<-auc
-pbar$step()
+  #split data 70-30
+  sample <- sample(nrow(cnew), 0.7*nrow(cnew), replace=FALSE)
+  train <- cnew[sample,]      # Store the 70% data in train
+  test <- cnew[-sample,]     # Store the remaining 30% data in valid
+  
+  #No:3624 Yes:1306
+  train <- SMOTE(Churn~.-Gender-Partner-Dependents-OnlineBackup-DeviceProtection-PhoneService-SeniorCitizen-TechSupport,k=5,train,perc.over=200,perc.under=150)
+  
+  
+  #doing logistic linear regression
+  model<-glm(Churn~.-Gender-Partner-Dependents-OnlineBackup-DeviceProtection-PhoneService-SeniorCitizen-TechSupport,family = binomial(link='logit'),data=train)
+  summary(model)
+  
+  #regression(anova)
+  #anova(model,test="Chisq")
+  
+  #prediction
+  #p<-predict(model,type="response")
+  #p<-ifelse(p>0.5,1,0)
+  #misClasificError[i] <- mean(p!=test$Churn)
+  #accuracy of prediction
+  #print(paste('Accuracy',1-misClasificError[i]))
+  
+  #based on prediction, test on actual
+  p<-predict(model,newdata=test,type="response")
+  pr<-prediction(p,test$Churn)
+  #plot true-positive to false-positive
+  prf<-performance(pr,measure="tpr",x.measure="fpr")
+  plot(prf)
+  
+  #finding Area Under Curve
+  auc <- performance(pr, measure="auc")
+  auc <- auc@y.values[[1]]
+  #AUC (best) = 1, AUC(coin toss)=0.5
+  areaundercurve[i]<-auc
+  pbar$step()
 }
 
-print(paste('Mean Prediction Accuracy: ',1-mean(misClasificError)))
+#print(paste('Mean Prediction Accuracy: ',1-mean(misClasificError)))
 print(paste('Mean Area Under Curve: ',mean(areaundercurve)))
