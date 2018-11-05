@@ -12,7 +12,11 @@ churndata_new <- churndata
 
 #--Replacing Rows with NA's with the Median
 churndata_new$TotalCharges[which(is.na(churndata_new$TotalCharges))] <- # Set : Rows in the Missing (Those that have NA)
+<<<<<<< HEAD
   median(churndata_new$TotalCharges, na.rmR=TRUE)                        # From: Middle "Value" of the Rating
+=======
+  median(churndata_new$TotalCharges, na.rm=TRUE)                        # From: Middle "Value" of the Rating
+>>>>>>> f61aa19dd958587581cd51fad3e1bd8335ebb6d4
 dim(churndata_new)      #No rows removed
 summary(churndata_new)  #NA's is removed from TotalCharges
 
@@ -36,11 +40,15 @@ rfFit <- randomForest(Churn ~ .-CustomerID,                      # formula
                       mtry = 4,                          # variables for split
                       importance = TRUE)                 # importance recorded                 
 rfFit
+<<<<<<< HEAD
 help(randomorest)
+=======
+>>>>>>> f61aa19dd958587581cd51fad3e1bd8335ebb6d4
 #Accuracy = 0.79
 varImpPlot(rfFit, type = 1)
 #Tenure tops the chart, hence most important.
 
+<<<<<<< HEAD
 # -------------------------------------------------------
 # Weighted Training
 
@@ -79,3 +87,43 @@ Prediction <- predict(rfFit, rf_churn)
 mean(rf_churn$Churn==Prediction)
 #accuracy 0.80
 
+=======
+# # -------------------------------------------------------
+# # Weighted Training
+# 
+# library(caret)
+# 
+# # Set up the formula ------------------------------------ ?
+# trainFormula <- (Churn~.-CustomerID-TotalCharges-Gender-Partner-PhoneService-PaymentMethod-Dependents-StreamingTV-StreamingMovies-DeviceProtection)
+# 
+# # Set up observation weights for training
+# table(rf_churn$Churn)
+# 
+# #Churn no = 0.734, Churn yes = 0.265
+# prop.table(table(rf_churn$Churn))
+# obsWeights <- ifelse(rf_churn$Churn == "No",
+#                      (0.5/table(rf_churn$Churn)[1]),
+#                      (0.5/table(rf_churn$Churn)[2]))
+# 
+# # cross-validation
+# trainCtrl <- trainControl(method = "repeatedcv",              # repeated cross-validation
+#                           number = 5,                         # number of folds for k-CV
+#                           repeats = 1,                        # number of repeats for CV
+#                           summaryFunction = twoClassSummary,  # allows metric = ROC in train
+#                           classProbs = TRUE)                  # probability (not just class)
+# 
+# rfFit <- train(trainFormula,                                  # formula
+#                data = rf_churn,                                # dataset
+#                method = "rf",                                 # model
+#                weights = obsWeights,                          # observation weights
+#                metric = "ROC",                                # tuning metric
+#                trControl = trainCtrl)                         # train controls
+# 
+# rfFit$finalModel
+# 
+# # Prediction
+# Prediction <- predict(rfFit, rf_churn)
+# mean(rf_churn$Churn==Prediction)
+# #accuracy 0.799999
+# 
+>>>>>>> f61aa19dd958587581cd51fad3e1bd8335ebb6d4
