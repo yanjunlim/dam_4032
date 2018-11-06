@@ -6,6 +6,8 @@ library(pROC)
 library(ROCR)
 library(ROSE)
 library(stringi)
+library(caret)
+library(gbm)
 
 #-Load the "churn" dataset
 churndata <- read.csv("Telco-Customer-Churn.csv", header = TRUE)
@@ -41,6 +43,7 @@ cnew$A[which(cnew$SeniorCitizen == 1)] <- "Yes"
 cnew$A[which(cnew$SeniorCitizen == 0)] <- "No"
 cnew$SeniorCitizen <- as.factor(cnew$A)
 
+
 #--Tenure
 cnew$A[which(                   cnew$Tenure <= 12)] <- "0~12"
 cnew$A[which(cnew$Tenure > 12 & cnew$Tenure <= 24)] <- "12~24"
@@ -75,6 +78,7 @@ valid <- cnew[-sample,]     # Store the remaining 30% data in valid
 
 areaundercurve<-c()
 misClasificError<-c()
+a1<-c()
 #Find out about distribution
 #jarque.bera.test(churndata_new$Tenure)
 # data:  churndata$Tenure
@@ -88,8 +92,8 @@ misClasificError<-c()
 
 str(train)
 #do collinearity test
-lm.fit<-glm(Churn~.-Gender-Partner-Dependents-OnlineBackup-DeviceProtection-PhoneService-SeniorCitizen-TechSupport,family = binomial(link='logit'),data=train)
-summary(lm.fit)
+#lm.fit<-glm(Churn~.,family = binomial(link='logit'),data=train)
+#summary(lm.fit)
 
 # Call:
 #   lm(formula = Churn ~ . - TotalCharges - Gender - Partner - PhoneService - 
@@ -154,11 +158,22 @@ for(i in 1:k){
   test <- cnew[-sample,]     # Store the remaining 30% data in valid
   
   #No:3624 Yes:1306
-  train <- SMOTE(Churn~.-Gender-Partner-Dependents-OnlineBackup-DeviceProtection-PhoneService-SeniorCitizen-TechSupport,k=5,train,perc.over=200,perc.under=150)
+  train <- SMOTE(Churn~.,k=5,train,perc.over=50,perc.under=300)
   
+  
+  x1<-train$Gender*train$Partner*train$Dependents*train$PhoneService*train$DeviceProtection*train$StreamingMovies*train$StreamingTV*train$PaymentMethod
+  fitcontrol<-trainControl(method="repeatedcv",number = 4,repeats = 4)
+  
+  gbm1<-train(Churn~.-Gender-Partner-Dependents-PhoneService-DeviceProtection-StreamingMovies-StreamingTV-PaymentMethod,data=train,method="gbm",trControl=fitcontrol,verbose=FALSE)
+  gbmtest<-predict(gbm1,test,type="prob")[,2]
+  test$Churn<-ifelse(test$Churn=="Yes",1,0)
+  pr1<-prediction(gbmtest,test$Churn)
+  prf1<-performance(pr1,measure="tpr",x.measure="fpr")
+  plot(prf1)
+  a1[i]<-auc(test$Churn,gbmtest)
   
   #doing logistic linear regression
-  model<-glm(Churn~.-Gender-Partner-Dependents-OnlineBackup-DeviceProtection-PhoneService-SeniorCitizen-TechSupport,family = binomial(link='logit'),data=train)
+  model<-glm(Churn~.,family = binomial(link='logit'),data=train)
   summary(model)
   
   #regression(anova)
@@ -188,3 +203,4 @@ for(i in 1:k){
 
 #print(paste('Mean Prediction Accuracy: ',1-mean(misClasificError)))
 print(paste('Mean Area Under Curve: ',mean(areaundercurve)))
+print(paste('Mean Area Under Curve ( GBM ) : ',mean(a1)))
