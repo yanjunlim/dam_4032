@@ -1,5 +1,6 @@
 library(stringi)
 
+
 #-Load the "churn" dataset
 churndata <- read.csv("Telco-Customer-Churn.csv", header = TRUE)
 str(churndata)
@@ -7,26 +8,89 @@ dim(churndata) # 7043   21
 summary(churndata)
 #--Observed : 11 NA's in TotalCharges
 
+
 #-Handling Missing Data
-churndata_new <- churndata
+cnew <- churndata
 
 #--Replacing Rows with NA's with the Median
-churndata_new$TotalCharges[which(is.na(churndata_new$TotalCharges))] <- # Set : Rows in the Missing (Those that have NA)
-<<<<<<< HEAD
-  median(churndata_new$TotalCharges, na.rmR=TRUE)                        # From: Middle "Value" of the Rating
-=======
-  median(churndata_new$TotalCharges, na.rm=TRUE)                        # From: Middle "Value" of the Rating
->>>>>>> f61aa19dd958587581cd51fad3e1bd8335ebb6d4
-dim(churndata_new)      #No rows removed
-summary(churndata_new)  #NA's is removed from TotalCharges
+cnew$TotalCharges[which(is.na(cnew$TotalCharges))] <- # Set : Rows in the Missing (Those that have NA)
+  median(cnew$TotalCharges, na.rm=TRUE)                        # From: Middle "Value" of the Rating
+dim(cnew)      #No rows removed
+summary(cnew)  #NA's is removed from TotalCharges
+
+#-Clean of Columns (to Factor)
+cnew$A <- "A" #Temporary Column
+
+#--CustomerID
+cnew$CustomerID <- NULL #no use
+
+#--TotalCharges
+cnew$A <- cnew$MonthlyCharges * cnew$Tenure
+cor.test(~ A + TotalCharges, cnew) #0.9992631
+cnew$TotalCharges <- NULL
+#---TotalCharges is closely related to MonthlyCharges and Tenure, thus it is removed.
+
+#--Senior Citizen
+cnew$A[which(cnew$SeniorCitizen == 1)] <- "Yes"
+cnew$A[which(cnew$SeniorCitizen == 0)] <- "No"
+cnew$SeniorCitizen <- as.factor(cnew$A)
 
 
+#--Tenure
+cnew$A[which(                   cnew$Tenure <= 12)] <- "0~12"
+cnew$A[which(cnew$Tenure > 12 & cnew$Tenure <= 24)] <- "12~24"
+cnew$A[which(cnew$Tenure > 24 & cnew$Tenure <= 36)] <- "24~36"
+cnew$A[which(cnew$Tenure > 36 & cnew$Tenure <= 48)] <- "36~48"
+cnew$A[which(cnew$Tenure > 48 & cnew$Tenure <= 60)] <- "48~60"
+cnew$A[which(cnew$Tenure > 60                    )] <- "60~"
+cnew$Tenure <- as.factor(cnew$A)
+
+#--MonthlyCharges
+cnew$A[which(                           cnew$MonthlyCharges <= 20 )] <- "0~20"
+cnew$A[which(cnew$MonthlyCharges > 20 & cnew$MonthlyCharges <= 40 )] <- "20~40"
+cnew$A[which(cnew$MonthlyCharges > 40 & cnew$MonthlyCharges <= 60 )] <- "40~60"
+cnew$A[which(cnew$MonthlyCharges > 60 & cnew$MonthlyCharges <= 80 )] <- "60~80"
+cnew$A[which(cnew$MonthlyCharges > 80 & cnew$MonthlyCharges <= 100)] <- "80~100"
+cnew$A[which(cnew$MonthlyCharges > 100                            )] <- "100~"
+cnew$MonthlyCharges <- as.factor(cnew$A)
+
+cnew$A <- NULL #Remove Temporary Column
+str(cnew) #Verify factors
+
+#-Takes a random 70% of data
+sample <- sample(nrow(cnew), 0.7*nrow(cnew), replace = FALSE)
+train <- cnew[sample,]      # Store the 70% data in train
+valid <- cnew[-sample,]     # Store the remaining 30% data in valid
+
+# ================= Classification Tree pruning =================
+library(tree)
+ltreeFit <- tree(Churn ~ ., data = train, 
+                 split = "deviance",
+                 method = "recursive.partition",
+                 control = tree.control(nobs = nrow(train),
+                                        mincut = 10,
+                                        minsize = 20,
+                                        mindev = 0))
+plot(ltreeFit)
+cvTree <- cv.tree(ltreeFit, FUN = prune.misclass, K = 10) # K-fold Cross-Validation
+cbind(cvTree$size, cvTree$dev)                            # check deviance vs size
+plot(cvTree$size, cvTree$dev, type="b",                   # plot deviance vs size
+     xlab = "Number of Leaves", ylab = "Deviance")                   
+
+bestSize <- 4     #bias is at the maximum on this point with 753 variance
+ptreeFit <- prune.misclass(ltreeFit, best = bestSize)     # prune tree to best size
+plot(ptreeFit)
+text(ptreeFit, pretty = FALSE)
+
+predTrain <- predict(ptreeFit, train, type = "class")  # prediction on train set
+mean(predTrain == train$Churn)                        # classification accuracy
+#accuracy = 0.784
 
 # ================= Prediction and Classification =================
 
 # Load and examine the dataset
 library(ISLR)
-rf_churn <- as.data.frame(churndata_new)
+rf_churn <- as.data.frame(train)
 str(rf_churn)
 
 #No = 5174, yes = 1869
@@ -34,96 +98,217 @@ table(rf_churn$Churn)
 
 # Fit a random forest
 library(randomForest)
-rfFit <- randomForest(Churn ~ .-CustomerID,                      # formula
+rfFit <- randomForest(Churn ~ .,                      # formula
                       data = rf_churn,                    # data set
                       ntree = 100,                       # number of trees
                       mtry = 4,                          # variables for split
                       importance = TRUE)                 # importance recorded                 
 rfFit
-<<<<<<< HEAD
-help(randomorest)
-=======
->>>>>>> f61aa19dd958587581cd51fad3e1bd8335ebb6d4
 #Accuracy = 0.79
 varImpPlot(rfFit, type = 1)
 #Tenure tops the chart, hence most important.
 
-<<<<<<< HEAD
-# -------------------------------------------------------
-# Weighted Training
 
+#====================under sampling ====================
+# install.packages("DMwR")
+#install.packages("plyr")
+
+library(DMwR)
+library(plyr)
+library(gbm)
 library(caret)
 
-# Set up the formula ------------------------------------ ?
-trainFormula <- (Churn~.-CustomerID-TotalCharges-Gender-Partner-PhoneService-PaymentMethod-Dependents-StreamingTV-StreamingMovies-DeviceProtection)
+k<-5
+accuracy<-c()
+pbar <- create_progress_bar('text')
+pbar$init(k)
+#i<-1
+for(i in 1:k){
+  #split data 70-30
+  sample <- sample(nrow(cnew), 0.7*nrow(cnew), replace=FALSE)
+  train <- cnew[sample,]      # Store the 70% data in train
+  test <- cnew[-sample,]     # Store the remaining 30% data in valid
+  
+  #No:3624 Yes:1306
+  train <- SMOTE(Churn~.,k=5,train,perc.over=50,perc.under=300)
+  
+  
+  x1<-train$Gender*train$Partner*train$Dependents*train$PhoneService*train$DeviceProtection*train$StreamingMovies*train$StreamingTV*train$PaymentMethod
+  fitcontrol<-trainControl(method="repeatedcv",number = 4,repeats = 4)
+  
+  gbm1<-train(Churn~.-Gender-Partner-Dependents-PhoneService-DeviceProtection-StreamingMovies-StreamingTV-PaymentMethod,data=train,method="gbm",trControl=fitcontrol,verbose=FALSE)
+  train$Churn<-ifelse(train$Churn=="Yes",1,0)
+  
+  #training model
+  gbm.lfp<-gbm(Churn~., distribution = 'bernoulli',data=train,n.trees = 100,interaction.depth = 10,shrinkage=.01,n.minobsinnode = 5)
+  
+  #400, 1, 0.01, 3 => 0.704
+  #400, 1, 0.01, 10 => 0.7037
+  #100, 10, 0.01, 3 => 0.715
+  #100, 10, 0.01, 5 => 0.721
+  #100, 10, 0.01, 5 => 0.721
+  
+  
+  gbm.lfp.test<-predict(gbm.lfp,newdata = test,type = 'response', n.trees = 400)
+  gbm.class<-ifelse(gbm.lfp.test<0.5,'No','Yes')
+  
+  results<-data.frame(actual=test$Churn,prediction=gbm.class)
+  attach(results)
+  count=0
+  for(h in 1:nrow(test))
+  {
+    if(actual[h]==prediction[h])
+    {
+      count<-count+1
+    }
+  }
+  #accuracy of the model against actual data
+  accuracy[i] = count/nrow(test)
+  
+  
+  pbar$step()
+}
 
-# Set up observation weights for training
-table(rf_churn$Churn)
+print(paste('Mean Actual Accuracy: ',mean(accuracy)))
 
-#Churn no = 0.734, Churn yes = 0.265
-prop.table(table(rf_churn$Churn))
-obsWeights <- ifelse(rf_churn$Churn == "No",
-                     (0.5/table(rf_churn$Churn)[1]),
-                     (0.5/table(rf_churn$Churn)[2]))
 
-# cross-validation
-trainCtrl <- trainControl(method = "repeatedcv",              # repeated cross-validation
-                          number = 10,                         # number of folds for k-CV
-                          repeats = 1,                        # number of repeats for CV
-                          summaryFunction = twoClassSummary,  # allows metric = ROC in train
-                          classProbs = TRUE)                  # probability (not just class)
 
-rfFit <- train(trainFormula,                                  # formula
-               data = rf_churn,                                # dataset
-               method = "rf",                                 # model
-               weights = obsWeights,                          # observation weights
-               metric = "ROC",                                # tuning metric
-               trControl = trainCtrl)                         # train controls
+#====================balanced sampling ====================
+# install.packages("DMwR")
+#install.packages("plyr")
 
-rfFit$finalModel
+library(DMwR)
+library(plyr)
+library(gbm)
+library(caret)
 
-# Prediction
-Prediction <- predict(rfFit, rf_churn)
-mean(rf_churn$Churn==Prediction)
-#accuracy 0.80
+k<-5
+accuracy<-c()
+pbar <- create_progress_bar('text')
+pbar$init(k)
+#i<-1
+for(i in 1:k){
+  #split data 70-30
+  sample <- sample(nrow(cnew), 0.7*nrow(cnew), replace=FALSE)
+  train <- cnew[sample,]      # Store the 70% data in train
+  test <- cnew[-sample,]     # Store the remaining 30% data in valid
+  
+  #No:3624 Yes:1306
+  train <- SMOTE(Churn~.,k=5,train,perc.over=200,perc.under=150)
+  
+  
+  x1<-train$Gender*train$Partner*train$Dependents*train$PhoneService*train$DeviceProtection*train$StreamingMovies*train$StreamingTV*train$PaymentMethod
+  fitcontrol<-trainControl(method="repeatedcv",number = 4,repeats = 4)
+  
+  gbm1<-train(Churn~.-Gender-Partner-Dependents-PhoneService-DeviceProtection-StreamingMovies-StreamingTV-PaymentMethod,data=train,method="gbm",trControl=fitcontrol,verbose=FALSE)
+  train$Churn<-ifelse(train$Churn=="Yes",1,0)
+  
+  #training model
+  gbm.lfp<-gbm(Churn~., distribution = 'bernoulli',data=train,n.trees = 400,interaction.depth = 10,shrinkage=.01,n.minobsinnode = 5)
+  
+  #k=5
+  #100, 1, 0.01, 3 => 0.658
+  #100, 5, 0.01, 3 => 0.65
+  #400, 5, 0.01, 3 => 0.7433
+  #400, 5, 0.01, 5 => 0.7515
+  #400, 10, 0.01, 5 => 0.777 ***
+  #400, 15, 0.01, 5 => 0.769
+  #400, 10, 0.01, 10 => 0.763
+  #600, 10, 0.01, 10 => 0.767
+  #600, 10, 0.01, 5 => 0.768
+  #500, 10, 0.01, 3 => 0.763
+  #400, 12, 0.01, 5 => 0.776
+  #400, 12, 0.01, 7 => 0.769
+  #400, 11, 0.01, 5 => 0.765
+  #450, 10, 0.01, 5 => 0.757
+  #400, 10, 0.005, 5 => 0.744
+  
+  #k=10
+  #400, 10, 0.01, 5 => 0.763
+  #600, 10, 0.01, 5 => 0.762
+  
+  help(gbm)
+  gbm.lfp.test<-predict(gbm.lfp,newdata = test,type = 'response', n.trees = 400)
+  gbm.class<-ifelse(gbm.lfp.test<0.5,'No','Yes')
+  
+  results<-data.frame(actual=test$Churn,prediction=gbm.class)
+  attach(results)
+  count=0
+  for(h in 1:nrow(test))
+  {
+    if(actual[h]==prediction[h])
+    {
+      count<-count+1
+    }
+  }
+  #accuracy of the model against actual data
+  accuracy[i] = count/nrow(test)
+  
+  
+  pbar$step()
+}
 
-=======
-# # -------------------------------------------------------
-# # Weighted Training
-# 
-# library(caret)
-# 
-# # Set up the formula ------------------------------------ ?
-# trainFormula <- (Churn~.-CustomerID-TotalCharges-Gender-Partner-PhoneService-PaymentMethod-Dependents-StreamingTV-StreamingMovies-DeviceProtection)
-# 
-# # Set up observation weights for training
-# table(rf_churn$Churn)
-# 
-# #Churn no = 0.734, Churn yes = 0.265
-# prop.table(table(rf_churn$Churn))
-# obsWeights <- ifelse(rf_churn$Churn == "No",
-#                      (0.5/table(rf_churn$Churn)[1]),
-#                      (0.5/table(rf_churn$Churn)[2]))
-# 
-# # cross-validation
-# trainCtrl <- trainControl(method = "repeatedcv",              # repeated cross-validation
-#                           number = 5,                         # number of folds for k-CV
-#                           repeats = 1,                        # number of repeats for CV
-#                           summaryFunction = twoClassSummary,  # allows metric = ROC in train
-#                           classProbs = TRUE)                  # probability (not just class)
-# 
-# rfFit <- train(trainFormula,                                  # formula
-#                data = rf_churn,                                # dataset
-#                method = "rf",                                 # model
-#                weights = obsWeights,                          # observation weights
-#                metric = "ROC",                                # tuning metric
-#                trControl = trainCtrl)                         # train controls
-# 
-# rfFit$finalModel
-# 
-# # Prediction
-# Prediction <- predict(rfFit, rf_churn)
-# mean(rf_churn$Churn==Prediction)
-# #accuracy 0.799999
-# 
->>>>>>> f61aa19dd958587581cd51fad3e1bd8335ebb6d4
+print(paste('Mean Actual Accuracy: ',mean(accuracy)))
+
+
+
+#====================over sampling ====================
+# install.packages("DMwR")
+#install.packages("plyr")
+
+library(DMwR)
+library(plyr)
+library(gbm)
+library(caret)
+
+k<-5
+accuracy<-c()
+pbar <- create_progress_bar('text')
+pbar$init(k)
+#i<-1
+for(i in 1:k){
+  #split data 70-30
+  sample <- sample(nrow(cnew), 0.7*nrow(cnew), replace=FALSE)
+  train <- cnew[sample,]      # Store the 70% data in train
+  test <- cnew[-sample,]     # Store the remaining 30% data in valid
+  
+  #No:3624 Yes:1306
+  train <- SMOTE(Churn~.,k=5,train,perc.over=400,perc.under=125)
+  
+  
+  x1<-train$Gender*train$Partner*train$Dependents*train$PhoneService*train$DeviceProtection*train$StreamingMovies*train$StreamingTV*train$PaymentMethod
+  fitcontrol<-trainControl(method="repeatedcv",number = 4,repeats = 4)
+  
+  gbm1<-train(Churn~.-Gender-Partner-Dependents-PhoneService-DeviceProtection-StreamingMovies-StreamingTV-PaymentMethod,data=train,method="gbm",trControl=fitcontrol,verbose=FALSE)
+  #  gbmtest<-predict(gbm1,test,type="prob")[,2]
+  train$Churn<-ifelse(train$Churn=="Yes",1,0)
+  # pr1<-prediction(gbmtest,test$Churn)
+  #prf1<-performance(pr1,measure="tpr",x.measure="fpr")
+  #plot(prf1)
+  #a1[i]<-auc(test$Churn,gbmtest)
+  
+  #training model
+  gbm.lfp<-gbm(Churn~., distribution = 'bernoulli',data=train,n.trees = 400,interaction.depth = 1,shrinkage=.01,n.minobsinnode = 3)
+  
+  gbm.lfp.test<-predict(gbm.lfp,newdata = test,type = 'response', n.trees = 400)
+  gbm.class<-ifelse(gbm.lfp.test<0.5,'No','Yes')
+  # table(gbm.class,test$lfp)
+  
+  results<-data.frame(actual=test$Churn,prediction=gbm.class)
+  attach(results)
+  count=0
+  for(h in 1:nrow(test))
+  {
+    if(actual[h]==prediction[h])
+    {
+      count<-count+1
+    }
+  }
+  #accuracy of the model against actual data
+  accuracy[i] = count/nrow(test)
+  
+  
+  pbar$step()
+}
+
+print(paste('Mean Actual Accuracy: ',mean(accuracy)))
