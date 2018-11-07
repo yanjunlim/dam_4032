@@ -9,6 +9,7 @@
 # library(caret)
 # library(gbm)
 library(plotly)
+library(ggplot2)
 library(RColorBrewer)
 
 #-Load the "churn" dataset
@@ -37,6 +38,9 @@ c.new$CustomerID <- NULL #no use
 
 #--TotalCharges
 c.new$A <- c.new$MonthlyCharges * c.new$Tenure
+ggplot(c.new, aes(c.new$A, c.new$TotalCharges)) + geom_point(color = brewer.pal(n = 3, name = 'Set3')[1]) +
+  labs(x = "Monthly Charges*Tenure", y = "Total Charges")
+
 cor.test(~ A + TotalCharges, c.new) #0.9992631
 c.new$TotalCharges <- NULL
 #---TotalCharges is closely related to MonthlyCharges and Tenure, thus it is removed.
@@ -71,12 +75,17 @@ c.new$MonthlyCharges <- as.factor(c.new$A)
 c.new$A <- NULL #remove temporary column
 str(c.new) #verify factors
 
-#-Takes a random 70% of data
-sample <- sample(nrow(c.new), 0.7 * nrow(c.new), replace = FALSE)
-train <- c.new[sample,]   #atore the 70% data in train
-valid <- c.new[-sample,]  #store the remaining 30% data in valid
-
 #-Pie Charts
+t.table <- table(c.new$Churn)
+t.percent <- round(100 * t.table / sum(t.table), 1)
+t.color <- brewer.pal(n = length(t.table), name = 'Set3')
+pie(
+  t.table,
+  labels = paste(t.percent, "%"),
+  main = paste(t.df$Churn[1], ":", labels(t.df[t.col])[[2]]),
+  col = t.color
+)
+
 c.split <- split(c.new, c.new$Churn)
 par(mfrow = c(1, length(c.split)), mar = c(0, 0, 3, 0)) #split based on churn
 
@@ -98,11 +107,11 @@ for (t.col in 1:(ncol(c.new) - 1)) {
          cex = 0.8,
          fill = t.color)
 }
+remove(t.col, t.len, t.df, t.table, t.percent, t.color)
+par(mfrow = c(1, 1), mar = c(5, 4, 4, 2) + 0.1) #revert
 
-
-
-
-
-
-
-par(mfrow = c(1, 1)) #revert
+#-Takes a random 70% of data
+sample <- sample(nrow(c.new), 0.7 * nrow(c.new), replace = FALSE)
+train <- c.new[sample,]   #atore the 70% data in train
+valid <- c.new[-sample,]  #store the remaining 30% data in valid
+remove(sample)
