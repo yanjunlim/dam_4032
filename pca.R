@@ -1,14 +1,14 @@
 library(stringi)
 library(dummies)
 library(DMwR)
-library(ggbiplot)
+library(ggfortify)
 
 k<-5
 accuracy<-c()
 
 
 #-Load the "churn" dataset
-churndata <- read.csv("DAM/Telco-Customer-Churn.csv", header = TRUE)
+churndata <- read.csv("Telco-Customer-Churn.csv", header = TRUE)
 str(churndata)
 dim(churndata) # 7043   21
 summary(churndata)
@@ -28,6 +28,7 @@ new_my_data <- dummy.data.frame(churndata_new, names = c("Gender", "Partner","De
                                                          "OnlineBackup","DeviceProtection","TechSupport","StreamingTV",
                                                          "StreamingMovies","Contract","PaperlessBilling","PaymentMethod"))
 
+
 summary(new_my_data)
 
 i<-1
@@ -39,10 +40,11 @@ for(i in 1:k){
   test <- new_my_data[-sample,]
   
   #SMOTE
-  train <- SMOTE(Churn~.,k=5,train,perc.over=50,perc.under=300)
+  train <- SMOTE(Churn~.,k=5,train,perc.over=200,perc.under=150)
+  train$Churn<-ifelse(train$Churn=="Yes",1,0)
 
   #compute PCs
-  prin_comp <- prcomp(train[,c(2:21)], scale. = T)
+  prin_comp <- prcomp(train[,c(2:47)], scale. = T)
   names(prin_comp)
   prin_comp$rotation[1:16,1:16]
   dim(prin_comp$x)
@@ -62,27 +64,30 @@ for(i in 1:k){
       ylab = "Cumulative Proportion of Variance Explained",
       type = "b")
 
-  train.data <- data.frame(Churn = train$Churn, prin_comp$x)
-  train.data <- train.data[,1:12]
+  train$Churn<-ifelse(train$Churn==1,"Yes","No")
+  train.data <- data.frame(Churn = as.factor(train$Churn), prin_comp$x)
+  train.data <- train.data[,1:47]
 
   #run a decision tree
   library(rpart)
   rpart.model <- rpart(Churn ~ .,data = train.data, method = "class")
   rpart.model
 
+  test$Churn<-ifelse(test$Churn=="Yes",1,0)
   #transform test into PCA
   test.data <- predict(prin_comp, newdata = test)
   test.data <- as.data.frame(test.data)
 
   #select the first 30 components
-  test.data <- test.data[,1:12]
+  test.data <- test.data[,1:46]
 
   #make prediction on test data
   rpart.prediction <- predict(rpart.model, test.data)
 
   final.sub <- data.frame(Churn = rpart.prediction)
   pca.class<-ifelse(rpart.prediction<0.5,'No','Yes')
-
+  
+  test$Churn<-ifelse(test$Churn==1,"Yes","No")
   results<-data.frame(actual=test$Churn,prediction=pca.class)
   attach(results)
   count=0
