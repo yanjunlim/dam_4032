@@ -38,6 +38,14 @@ cnew$TotalCharges[which(is.na(cnew$TotalCharges))] <- # Set : Rows in the Missin
 dim(cnew)      #No rows removed
 summary(cnew)  #NA's is removed from TotalCharges
 
+
+new_my_data <- dummy.data.frame(churndata_new, names = c("Gender", "Partner","Dependents","PhoneService",
+                                                         "MultipleLines","InternetService","OnlineSecurity",
+                                                         "OnlineBackup","DeviceProtection","TechSupport","StreamingTV",
+                                                         "StreamingMovies","Contract","PaperlessBilling","PaymentMethod"))
+
+summary(new_my_data)
+
 #-Clean of Columns (to Factor)
 cnew$A <- "A" #Temporary Column
 
@@ -81,12 +89,7 @@ cnew$Gender<-NULL
 cnew$PhoneService<-NULL
 cnew$MultipleLines<-NULL
 
-new_my_data <- dummy.data.frame(cnew, names = c("Partner","Dependents",
-                                                         "InternetService","OnlineSecurity",
-                                                         "OnlineBackup","DeviceProtection","TechSupport","StreamingTV",
-                                                         "StreamingMovies","Contract","PaperlessBilling","PaymentMethod"))
 
-summary(new_my_data)
 
 #-Takes a random 70% of data
 sample <- sample(nrow(cnew), 0.7*nrow(cnew), replace = FALSE)
@@ -141,6 +144,7 @@ varImpPlot(rfFit, type = 1)
 
 area<-c()
 accuracyrf<-c()
+accuracypca<-c()
 areaundercurve<-c()
 misClasificError<-c()
 a1<-c()
@@ -227,10 +231,19 @@ for(i in 1:k){
   accuracyrf[i] = count/nrow(test)
   
   #========================= Principle Component Analysis ====================================
+  #-Takes a random 70% of data
+  sample <- sample(nrow(new_my_data), 0.7*nrow(new_my_data), replace = FALSE)
+  trainpca <- new_my_data[sample,]      # Store the 70% data in train
+  testpca <- new_my_data[-sample,]
+  
+  #SMOTE
+  trainpca <- SMOTE(Churn~.,k=5,trainpca,perc.over=200,perc.under=150)
+  trainpca$Churn<-ifelse(trainpca$Churn=="Yes",1,0)
+  
   #compute PCs
-  prin_comp <- prcomp(train[,c(2:46)], scale. = T)
+  prin_comp <- prcomp(trainpca[,c(2:47)], scale. = T)
   names(prin_comp)
-  prin_comp$rotation[1:16,1:16]
+  prin_comp$rotation[1:46,1:46]
   dim(prin_comp$x)
   biplot(prin_comp, scale = 0)
   std_dev <- prin_comp$sdev
@@ -248,19 +261,21 @@ for(i in 1:k){
        ylab = "Cumulative Proportion of Variance Explained",
        type = "b")
   
-  train.data <- data.frame(Churn = train$Churn, prin_comp$x)
-  train.data <- train.data[,1:12]
+  trainpca$Churn<-ifelse(trainpca$Churn==1,"Yes","No")
+  train.data <- data.frame(Churn = as.factor(trainpca$Churn), prin_comp$x)
+  train.data <- train.data[,1:21]
   
   #run a decision tree
   rpart.model <- rpart(Churn ~ .,data = train.data, method = "class")
   rpart.model
   
+  testpca$Churn<-ifelse(testpca$Churn=="Yes",1,0)
   #transform test into PCA
-  test.data <- predict(prin_comp, newdata = test)
+  test.data <- predict(prin_comp, newdata = testpca)
   test.data <- as.data.frame(test.data)
   
   #select the first 30 components
-  test.data <- test.data[,1:12]
+  test.data <- test.data[,1:21]
   
   #make prediction on test data
   rpart.prediction <- predict(rpart.model, test.data)
@@ -268,10 +283,11 @@ for(i in 1:k){
   final.sub <- data.frame(Churn = rpart.prediction)
   pca.class<-ifelse(rpart.prediction<0.5,'No','Yes')
   
-  results<-data.frame(actual=test$Churn,prediction=pca.class)
+  testpca$Churn<-ifelse(testpca$Churn==1,"Yes","No")
+  results<-data.frame(actual=testpca$Churn,prediction=pca.class)
   attach(results)
   count=0
-  for(h in 1:nrow(test))
+  for(h in 1:nrow(testpca))
   {
     if(actual[h]==prediction.Yes[h])
     {
@@ -279,7 +295,7 @@ for(i in 1:k){
     }
   }
   #accuracy of the model against actual data
-  accuracy[i] = count/nrow(test)
+  accuracypca[i] = count/nrow(testpca)
   
   
   pbar$step()
@@ -289,3 +305,4 @@ print(paste('Mean Area Under Curve (Binary Logistic Regression) : ',mean(areaund
 print(paste('Mean Area Under Curve ( Binary Logistic Regression with GBM ) : ',mean(a1)))
 print(paste('Mean Area Under Curve (Neural Network): ',mean(area)))
 print(paste('Mean Actual Accuracy (Random Forest): ',mean(accuracyrf)))
+print(paste('Mean Actual Accuracy (Principle Component Analysis): ',mean(accuracypca)))
