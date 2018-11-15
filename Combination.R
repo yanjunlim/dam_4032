@@ -37,7 +37,7 @@ cnew$TotalCharges[which(is.na(cnew$TotalCharges))] <- # Set : Rows in the Missin
   median(cnew$TotalCharges, na.rm=TRUE)                        # From: Middle "Value" of the Rating
 dim(cnew)      #No rows removed
 summary(cnew)  #NA's is removed from TotalCharges
-
+churndata_new<-cnew
 
 new_my_data <- dummy.data.frame(churndata_new, names = c("Gender", "Partner","Dependents","PhoneService",
                                                          "MultipleLines","InternetService","OnlineSecurity",
