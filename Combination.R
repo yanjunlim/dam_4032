@@ -248,9 +248,7 @@ for(i in 1:k){
   biplot(prin_comp, scale = 0)
   std_dev <- prin_comp$sdev
   pr_var <- std_dev^2
-  pr_var[1:12]
   prop_varex <- pr_var/sum(pr_var)
-  prop_varex[1:20]
   
   #plot variation graphs
   plot(prop_varex, xlab = "Principal Component",
@@ -262,6 +260,7 @@ for(i in 1:k){
        type = "b")
   
   trainpca$Churn<-ifelse(trainpca$Churn==1,"Yes","No")
+  
   train.data <- data.frame(Churn = as.factor(trainpca$Churn), prin_comp$x)
   train.data <- train.data[,1:21]
   
@@ -274,7 +273,7 @@ for(i in 1:k){
   test.data <- predict(prin_comp, newdata = testpca)
   test.data <- as.data.frame(test.data)
   
-  #select the first 30 components
+  #select the first 20 components
   test.data <- test.data[,1:21]
   
   #make prediction on test data
