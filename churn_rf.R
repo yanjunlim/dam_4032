@@ -1,5 +1,11 @@
+library(DMwR)
+library(plyr)
+library(gbm)
+library(caret)
+library(randomForest)
+library(tree)
 library(stringi)
-
+library(ISLR)
 
 #-Load the "churn" dataset
 churndata <- read.csv("Telco-Customer-Churn.csv", header = TRUE)
@@ -63,7 +69,7 @@ train <- cnew[sample,]      # Store the 70% data in train
 valid <- cnew[-sample,]     # Store the remaining 30% data in valid
 
 # ================= Classification Tree pruning =================
-library(tree)
+
 ltreeFit <- tree(Churn ~ ., data = train, 
                  split = "deviance",
                  method = "recursive.partition",
@@ -89,15 +95,14 @@ mean(predTrain == train$Churn)                        # classification accuracy
 # ================= Prediction and Classification =================
 
 # Load and examine the dataset
-library(ISLR)
+
 rf_churn <- as.data.frame(train)
 str(rf_churn)
 
 #No = 5174, yes = 1869
 table(rf_churn$Churn)
 
-# Fit a random forest
-library(randomForest)
+
 rfFit <- randomForest(Churn ~ .,                      # formula
                       data = rf_churn,                    # data set
                       ntree = 100,                       # number of trees
@@ -110,13 +115,6 @@ varImpPlot(rfFit, type = 1)
 
 
 #====================under sampling ====================
-# install.packages("DMwR")
-#install.packages("plyr")
-
-library(DMwR)
-library(plyr)
-library(gbm)
-library(caret)
 
 k<-5
 accuracy<-c()
@@ -174,18 +172,13 @@ print(paste('Mean Actual Accuracy: ',mean(accuracy)))
 
 
 #====================balanced sampling ====================
-# install.packages("DMwR")
-#install.packages("plyr")
-
-library(DMwR)
-library(plyr)
-library(gbm)
-library(caret)
 
 k<-5
 accuracy<-c()
 pbar <- create_progress_bar('text')
 pbar$init(k)
+
+x<-Churn~.-Gender-Partner-Dependents-PhoneService-DeviceProtection-StreamingMovies-StreamingTV-PaymentMethod
 #i<-1
 for(i in 1:k){
   #split data 70-30
@@ -253,14 +246,6 @@ print(paste('Mean Actual Accuracy: ',mean(accuracy)))
 
 
 #====================over sampling ====================
-# install.packages("DMwR")
-#install.packages("plyr")
-
-library(DMwR)
-library(plyr)
-library(gbm)
-library(caret)
-
 k<-5
 accuracy<-c()
 pbar <- create_progress_bar('text')
@@ -276,23 +261,19 @@ for(i in 1:k){
   train <- SMOTE(Churn~.,k=5,train,perc.over=400,perc.under=125)
   
   
+  
   x1<-train$Gender*train$Partner*train$Dependents*train$PhoneService*train$DeviceProtection*train$StreamingMovies*train$StreamingTV*train$PaymentMethod
   fitcontrol<-trainControl(method="repeatedcv",number = 4,repeats = 4)
   
   gbm1<-train(Churn~.-Gender-Partner-Dependents-PhoneService-DeviceProtection-StreamingMovies-StreamingTV-PaymentMethod,data=train,method="gbm",trControl=fitcontrol,verbose=FALSE)
-  #  gbmtest<-predict(gbm1,test,type="prob")[,2]
   train$Churn<-ifelse(train$Churn=="Yes",1,0)
-  # pr1<-prediction(gbmtest,test$Churn)
-  #prf1<-performance(pr1,measure="tpr",x.measure="fpr")
-  #plot(prf1)
-  #a1[i]<-auc(test$Churn,gbmtest)
+
   
   #training model
   gbm.lfp<-gbm(Churn~., distribution = 'bernoulli',data=train,n.trees = 400,interaction.depth = 1,shrinkage=.01,n.minobsinnode = 3)
   
   gbm.lfp.test<-predict(gbm.lfp,newdata = test,type = 'response', n.trees = 400)
   gbm.class<-ifelse(gbm.lfp.test<0.5,'No','Yes')
-  # table(gbm.class,test$lfp)
   
   results<-data.frame(actual=test$Churn,prediction=gbm.class)
   attach(results)
