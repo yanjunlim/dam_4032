@@ -54,7 +54,7 @@ Last Step:
 
 To run the following Assignment, steps are as follows:
 *Keep all files in a single folder*
-1)	Open “ Conbination.r” file
+1)	Open “ Combination.r” file
 2)	In R studio, go "Files" at small window tab, -> "More" -> "Set As Working Directory"
 3)	set it to current file (1) location
 3)	To run the codes:
