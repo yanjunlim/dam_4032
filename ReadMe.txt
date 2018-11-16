@@ -46,7 +46,7 @@ Additional R Library Files (To download):
 Step 3:
 -	After downloading the package, install the following packages as follows
 
-1)	In R Studio go to ìPackagesî Tab
+1)	In R Studio go to ‚ÄúPackages‚Äù Tab
 2)	Click on the install
 3)	Select the list of downloaded libraries
 ------------------------------------------
@@ -54,11 +54,11 @@ Last Step:
 
 To run the following Assignment, steps are as follows:
 *Keep all files in a single folder*
-1)	Open ì .rî file
+1)	Open ‚Äú Conbination.r‚Äù file
 2)	In R studio, go "Files" at small window tab, -> "More" -> "Set As Working Directory"
 3)	set it to current file (1) location
 3)	To run the codes:
-		Option 1: hit ìrunî icon at top right corner of 
+		Option 1: hit ‚Äúrun‚Äù icon at top right corner of 
 		Option 2: press Ctrl + Enter to run individual line/ step
 
 4)	Output values of the assignment will be shown at the Console window
